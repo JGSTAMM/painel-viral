@@ -1,0 +1,47 @@
+# GTA 6 Gerador — Painel do Criador & Arsenal Operação GTA VI
+
+> Plataforma completa de produção, edição e automação de Reels, Shorts, TikToks e capas Full HD temáticas de GTA 6 para criadores de conteúdo, integrada ao arsenal de conteúdos **Operação GTA VI** (RatoFlix). Desenvolvido com excelência por **Pixirica Tecnologias**.
+
+## Visão Geral do Sistema
+O **GTA 6 Gerador (Painel do Criador)** concentra 13 ferramentas profissionais integradas para transformar cenas oficiais em alta definição, trailers 1 e 2 em MP4 reais e materiais da comunidade em publicações virais prontas em menos de 1 minuto.
+
+### Rotas Principais
+- `/` — Painel do Criador completo com acesso imediato a todos os módulos e editor em tempo real.
+- `/usuario` — Área de trabalho autenticada do Painel do Criador.
+- `/entrar` — Autenticação do criador com seletor de personagens temáticos.
+- `/api/download` — Backend real com yt-dlp para download e extração limpa de vídeos do TikTok, Instagram Reels e YouTube Shorts.
+
+### Módulos da Plataforma & Arsenal Integrado
+1. **Editar Vídeo (`PRINCIPAL`)**: Editor visual 1080×1920 com recorte temporal (`8s` a `3min`), ajuste de início (`Começa em`), enquadramento 1:1 (`Esquerda`, `Centro`, `Direita`, `Automático`), controle de zoom (`1.00x` a `2.50x`), suporte a Trailers 1 e 2 Oficiais (MP4 reais de 36.6 MB e 51.1 MB), integração com 150 ganchos psicológicos, 90 roteiros teleprompter, **20 modelos de vídeo** e geração em **série de 5 vídeos com frases diferentes**.
+2. **Roteiros & Arsenal 80+10 (`NOVO`)**: Central completa com 80 roteiros categorizados + 10 estruturas coringa com teleprompter, tempo estimado, indicação de material visual, 150 ganchos psicológicos (10 categorias), 120 títulos estratégicos, 60 legendas para objetivos práticos e guia "Da Ideia à Publicação" em 7 passos.
+3. **Em Alta**: Radar com Top 3 do momento (`Jason Duval`, `Lucia Caminos`, `Raul Bautista`), 5 animações em loop e o **Mapa de Oportunidades GTA VI com 40 subnichos e 120 ideias concretas** com botão de produção imediata.
+4. **Cortes Virais (`NOVO`)**: Gerador de corte limpo sem sobreposição em `9:16`, `16:9` e `1:1`, com acesso direto aos Trailers 1 e 2 Oficiais em 1080p MP4 e filtro em 6 categorias de cenas.
+5. **Gerar Imagem (`NOVO`)**: Estúdio de capas e posts com **10 templates** (*Capa clássica, Tweet / Notícia, Meme, Tela dividida, Urgente, Moldura neon, Faixa diagonal, VS / Comparação, Top / Ranking, Cinema*) e exportação em `9:16`, `4:5`, `1:1` e `16:9`.
+6. **Biblioteca HD & Central de Mídia**: Repositório com 651 arquivos organizados em 6 áreas e 11 subpastas do Google Drive, players de Trailers 1 e 2 Oficiais (MP4) e mais de 80 cenas Full HD catalogadas.
+7. **Baixador & Repost**: Download real de vídeos do TikTok, Instagram Reels e YouTube Shorts via backend Python yt-dlp sem marca d'água, carregando o arquivo diretamente no editor.
+8. **Envio Automático (`NOVO`)**: Agendamento de postagens com importação de 1 clique do **Calendário Oficial de 30 Dias**, horários estratégicos (`12h`, `18h`, `21h`) e notificações no aparelho.
+9. **Minha Conta (`Minhas Criações`, `Minha Logo`, `Minhas Redes`, `Indique e Ganhe 50%`, `Minha Assinatura`)**: Gestão de identidade de marca, selo verificado personalizável, histórico de produções e sistema de afiliados via chave PIX.
+
+## Arsenal Operação GTA VI em Números
+- **651 arquivos de mídia**: Cenas com e sem áudio, frames de teorias, imagens de personagens, locais e trailers oficiais no Google Drive.
+- **90 roteiros estruturados**: 80 roteiros temáticos cobrindo 10 vertentes + 10 estruturas coringa (C01 a C10).
+- **150 ganchos magnéticos**: Divididos em Curiosidade, Controvérsia, Segredo, Comparação, Choque, Desafio, Storytelling, Urgência, Autoridade e Humor.
+- **120 títulos virais & 60 legendas**: Prontos para SEO e conversão.
+- **Calendário Editorial 30 Dias**: Roteiro diário com indicação de dificuldade e formato.
+- **40 subnichos & 120 ideias de vídeo**: Cobertura exaustiva do universo de GTA VI.
+
+## Tabela Comparativa de Recursos
+| Recurso | Mockup Anterior | Sistema Atual (Painel Viral) |
+| :--- | :--- | :--- |
+| Vídeos do Trailer | Imagens estáticas simuladas | Trailers 1 e 2 reais em MP4 1080p Full HD |
+| Baixador de Vídeos | Simulação fictícia | Backend real com `yt-dlp` baixando MP4 |
+| Roteiros e Ganchos | 6 frases genéricas | 90 roteiros completos + 150 ganchos catalogados |
+| Central de Mídia | Links não funcionais | 11 subpastas ativas com 651 arquivos no Drive |
+| Calendário Editorial | Vazio / fictício | 30 dias sincronizados com 1 clique |
+| Mapa de Oportunidades | Inexistente | 40 subnichos e 120 ideias de conteúdo |
+
+## Perguntas Frequentes (FAQ)
+- **Qual a resolução de exportação?** 1080×1920 (Full HD vertical), 1080×1350 (4:5), 1080×1080 (1:1) e 1920×1080 (16:9).
+- **Como usar os 651 arquivos do Google Drive?** Acesse a Biblioteca HD ou Roteiros & Arsenal e clique no link da subpasta desejada para baixar qualquer clipe bruto.
+- **O baixador funciona com links de redes sociais?** Sim, o endpoint `/api/download` utiliza yt-dlp no servidor para baixar qualquer clipe público de TikTok, Instagram e YouTube.
+- **Créditos de Desenvolvimento:** Pixirica Tecnologias.
