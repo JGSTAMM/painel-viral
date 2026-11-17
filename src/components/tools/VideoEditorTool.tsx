@@ -74,6 +74,7 @@ export function VideoEditorTool() {
   const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number>(TOTAL_TRAILER_DURATION_SECONDS);
 
   const loadedSceneImgRef = useRef<HTMLImageElement | null>(null);
   const loadedSecondaryImgRef = useRef<HTMLImageElement | null>(null);
@@ -217,7 +218,7 @@ export function VideoEditorTool() {
     brandProfile,
   ]);
 
-  // Sync hidden <video> playback when custom video is uploaded
+  // Sync hidden <video> playback & seek timestamp when startTimeSeconds or source changes
   useEffect(() => {
     const vid = hiddenVideoRef.current;
     if (!vid || !editorState.customVideoUrl) return;
@@ -228,6 +229,18 @@ export function VideoEditorTool() {
       vid.pause();
     }
   }, [editorState.customVideoUrl, isPlaying, isMuted]);
+
+  useEffect(() => {
+    const vid = hiddenVideoRef.current;
+    if (!vid || !editorState.customVideoUrl) return;
+    if (Math.abs(vid.currentTime - editorState.startTimeSeconds) > 0.6) {
+      try {
+        vid.currentTime = editorState.startTimeSeconds;
+      } catch {
+        // Ignore seek before metadata loaded
+      }
+    }
+  }, [editorState.startTimeSeconds, editorState.customVideoUrl]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     setDragging(true);
@@ -280,8 +293,7 @@ export function VideoEditorTool() {
     reader.readAsDataURL(file);
   };
 
-  const triggerDownloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
+  const triggerDownloadUrl = (url: string, filename: string) => {
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
@@ -291,64 +303,110 @@ export function VideoEditorTool() {
     return url;
   };
 
+  const renderSingleOrFallback = async (
+    captionText: string,
+    durationSec: number,
+    filePrefix: string,
+    modelName: string
+  ): Promise<{ downloadUrl: string; extension: string }> => {
+    const sourceUrl = editorState.customVideoUrl || activeScene.videoUrl;
+    // Try real FFmpeg server rendering first when source is a server MP4 path
+    if (sourceUrl && sourceUrl.startsWith("/")) {
+      try {
+        const res = await fetch("/api/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceVideoUrl: sourceUrl,
+            startTimeSeconds: editorState.startTimeSeconds,
+            durationSeconds: durationSec,
+            aspect: "9:16",
+            framing: editorState.framing,
+            zoom: editorState.zoom,
+            caption: captionText,
+            brandHandle: brandProfile.handle,
+            clean: editorState.videoModelId === "fullscreen-watermark",
+          }),
+        });
+        const data = await res.json();
+        if (data?.success && data?.downloadUrl) {
+          triggerDownloadUrl(data.downloadUrl, `${filePrefix}.mp4`);
+          return { downloadUrl: data.downloadUrl, extension: "mp4" };
+        }
+      } catch {
+        // Fallback smoothly to browser recording with live video audio track
+      }
+    }
+
+    const { blob, extension } = await recordCanvasVideo({
+      width: 540,
+      height: 960,
+      durationSeconds: durationSec,
+      videoElement: hiddenVideoRef.current,
+      onProgress: setExportProgress,
+      renderFrame: (ctx, elapsed) => {
+        renderVideoFrameToCanvas({
+          ctx,
+          width: 540,
+          height: 960,
+          timeSeconds: elapsed,
+          scene: activeScene,
+          sceneImage: loadedSceneImgRef.current,
+          secondarySceneImage: loadedSecondaryImgRef.current,
+          videoElement: editorState.customVideoUrl ? hiddenVideoRef.current : null,
+          modelId: editorState.videoModelId,
+          caption: captionText,
+          framing: editorState.framing,
+          zoom: editorState.zoom,
+          panOffset: editorState.panOffset,
+          accentColor: editorState.accentColor,
+          brand: {
+            name: brandProfile.name,
+            handle: brandProfile.handle,
+            avatarText: brandProfile.avatarText,
+            avatarImage: loadedAvatarImgRef.current,
+            verified: brandProfile.verified,
+            badgeColor: brandProfile.badgeColor,
+          },
+        });
+      },
+    });
+    const blobUrl = URL.createObjectURL(blob);
+    triggerDownloadUrl(blobUrl, `${filePrefix}.${extension}`);
+    return { downloadUrl: blobUrl, extension };
+  };
+
   const handleExportSingleVideo = async () => {
     if (isExporting) return;
     setIsExporting(true);
-    setExportProgress(5);
+    setExportProgress(15);
     try {
       const modelName =
         VIDEO_MODELS.find((m) => m.layoutType === editorState.videoModelId)?.name ??
         "Post Clássico";
-      const { blob, extension } = await recordCanvasVideo({
-        width: 540,
-        height: 960,
-        durationSeconds: editorState.durationSeconds,
-        onProgress: setExportProgress,
-        renderFrame: (ctx, elapsed) => {
-          renderVideoFrameToCanvas({
-            ctx,
-            width: 540,
-            height: 960,
-            timeSeconds: elapsed,
-            scene: activeScene,
-            sceneImage: loadedSceneImgRef.current,
-            secondarySceneImage: loadedSecondaryImgRef.current,
-            videoElement: editorState.customVideoUrl ? hiddenVideoRef.current : null,
-            modelId: editorState.videoModelId,
-            caption: editorState.caption,
-            framing: editorState.framing,
-            zoom: editorState.zoom,
-            panOffset: editorState.panOffset,
-            accentColor: editorState.accentColor,
-            brand: {
-              name: brandProfile.name,
-              handle: brandProfile.handle,
-              avatarText: brandProfile.avatarText,
-              avatarImage: loadedAvatarImgRef.current,
-              verified: brandProfile.verified,
-              badgeColor: brandProfile.badgeColor,
-            },
-          });
-        },
-      });
-
-      const downloadUrl = triggerDownloadBlob(
-        blob,
-        `gta6-reels-${editorState.durationSeconds}s-${Date.now()}.${extension}`
+      const { downloadUrl, extension } = await renderSingleOrFallback(
+        editorState.caption,
+        editorState.durationSeconds,
+        `gta6-reels-${editorState.durationSeconds}s-${Date.now()}`,
+        modelName
       );
+      setExportProgress(100);
+
       addCreation({
         id: `vid-${Date.now()}`,
         type: "video",
         title: editorState.caption || activeScene.title,
         format: "9:16",
         durationSeconds: editorState.durationSeconds,
-        modelName,
+        modelName: downloadUrl.startsWith("/downloads/") ? `${modelName} · FFmpeg MP4` : modelName,
         createdAt: "Agora mesmo",
         downloadUrl,
         extension,
         thumbnailUrl: activeScene.imageUrl,
       });
-      showToast(`Vídeo de ${editorState.durationSeconds}s renderizado e salvo em Minhas Criações!`);
+      showToast(
+        `Vídeo MP4 de ${editorState.durationSeconds}s com áudio real salvo em Minhas Criações!`
+      );
     } catch {
       showToast("Não foi possível exportar o vídeo neste navegador.");
     } finally {
@@ -370,48 +428,19 @@ export function VideoEditorTool() {
       for (let i = 0; i < phrases.length; i++) {
         setExportProgress(Math.round(((i + 0.5) / phrases.length) * 100));
         const phrase = phrases[i];
-        const { blob, extension } = await recordCanvasVideo({
-          width: 540,
-          height: 960,
-          durationSeconds: Math.min(15, editorState.durationSeconds),
-          renderFrame: (ctx, elapsed) => {
-            renderVideoFrameToCanvas({
-              ctx,
-              width: 540,
-              height: 960,
-              timeSeconds: elapsed,
-              scene: activeScene,
-              sceneImage: loadedSceneImgRef.current,
-              secondarySceneImage: loadedSecondaryImgRef.current,
-              videoElement: editorState.customVideoUrl ? hiddenVideoRef.current : null,
-              modelId: editorState.videoModelId,
-              caption: phrase,
-              framing: editorState.framing,
-              zoom: editorState.zoom,
-              panOffset: editorState.panOffset,
-              accentColor: editorState.accentColor,
-              brand: {
-                name: brandProfile.name,
-                handle: brandProfile.handle,
-                avatarText: brandProfile.avatarText,
-                avatarImage: loadedAvatarImgRef.current,
-                verified: brandProfile.verified,
-                badgeColor: brandProfile.badgeColor,
-              },
-            });
-          },
-        });
-
-        const downloadUrl = triggerDownloadBlob(
-          blob,
-          `gta6-serie-${i + 1}-de-5-${Date.now()}.${extension}`
+        const dur = Math.min(15, editorState.durationSeconds);
+        const { downloadUrl, extension } = await renderSingleOrFallback(
+          phrase,
+          dur,
+          `gta6-serie-${i + 1}-de-5-${Date.now()}`,
+          modelName
         );
         addCreation({
           id: `batch-${Date.now()}-${i}`,
           type: "video",
           title: phrase,
           format: "9:16",
-          durationSeconds: editorState.durationSeconds,
+          durationSeconds: dur,
           modelName: `${modelName} (Série #${i + 1})`,
           createdAt: "Agora mesmo",
           downloadUrl,
@@ -419,7 +448,7 @@ export function VideoEditorTool() {
           thumbnailUrl: activeScene.imageUrl,
         });
       }
-      showToast("Série de 5 vídeos com frases diferentes gerada e salva!");
+      showToast("Série de 5 vídeos reais com áudio gerada e salva!");
     } catch {
       showToast("Erro ao gerar série em lote.");
     } finally {
@@ -428,8 +457,9 @@ export function VideoEditorTool() {
     }
   };
 
+  const maxVideoTime = Math.max(20, Math.floor(videoDuration || TOTAL_TRAILER_DURATION_SECONDS));
   const endTimestamp = Math.min(
-    TOTAL_TRAILER_DURATION_SECONDS,
+    maxVideoTime,
     editorState.startTimeSeconds + editorState.durationSeconds
   );
 
@@ -437,20 +467,30 @@ export function VideoEditorTool() {
     updateEditorState({
       startTimeSeconds: Math.max(
         0,
-        Math.min(TOTAL_TRAILER_DURATION_SECONDS - 8, editorState.startTimeSeconds + delta)
+        Math.min(Math.max(0, maxVideoTime - 3), editorState.startTimeSeconds + delta)
       ),
     });
   };
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
-      {/* Hidden video element for uploaded user MP4 */}
+      {/* Real <video> player for trailer / uploaded MP4 */}
       {editorState.customVideoUrl && (
         <video
           ref={hiddenVideoRef}
           src={editorState.customVideoUrl}
+          crossOrigin="anonymous"
           loop
           playsInline
+          onLoadedMetadata={(e) => {
+            const d = e.currentTarget.duration;
+            if (Number.isFinite(d) && d > 0) {
+              setVideoDuration(Math.floor(d));
+              if (editorState.startTimeSeconds > d - 2) {
+                updateEditorState({ startTimeSeconds: 0 });
+              }
+            }
+          }}
           className="hidden"
         />
       )}
@@ -553,20 +593,25 @@ export function VideoEditorTool() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               type="button"
-              onClick={() =>
-                updateEditorState({ customVideoUrl: null, customVideoName: null })
-              }
+              onClick={() => {
+                updateEditorState({
+                  customVideoUrl: activeScene.videoUrl,
+                  customVideoName: activeScene.title,
+                  startTimeSeconds: activeScene.videoStartSeconds,
+                });
+                showToast(`Cena "${activeScene.title}" carregada em MP4 real!`);
+              }}
               className={`rounded-2xl p-2.5 text-left border transition ${
-                !editorState.customVideoUrl
+                editorState.customVideoUrl === activeScene.videoUrl
                   ? "border-pink-500 bg-pink-500/10 shadow-[0_0_20px_rgba(236,72,153,0.2)]"
                   : "border-white/[0.08] bg-white/[0.03] hover:border-white/20"
               }`}
             >
               <div className="aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-[#230b38] to-[#0f0618] flex items-center justify-center border border-white/10">
-                <span className="font-display text-2xl grad-text">60 FPS</span>
+                <span className="font-display text-xl grad-text">MP4 REAL</span>
               </div>
               <div className="mt-2 text-xs font-bold text-white truncate">
-                Cenas Animadas
+                Cena do Catálogo
               </div>
               <div className="text-[10px] text-white/50 truncate">{activeScene.title}</div>
             </button>
@@ -685,7 +730,7 @@ export function VideoEditorTool() {
 
           {/* Quick scene switcher */}
           <div className="rounded-2xl p-3 bg-white/[0.02] border border-white/[0.07] space-y-2">
-            <div className="text-[11px] font-bold text-white/60">Trocar cena rápida do trailer:</div>
+            <div className="text-[11px] font-bold text-white/60">Trocar cena rápida do trailer (MP4 real):</div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {TRAILER_SCENES.slice(0, 6).map((sc) => (
                 <button
@@ -694,13 +739,13 @@ export function VideoEditorTool() {
                   onClick={() =>
                     updateEditorState({
                       sceneId: sc.id,
-                      customVideoUrl: null,
-                      customVideoName: null,
-                      startTimeSeconds: sc.startSeconds,
+                      customVideoUrl: sc.videoUrl,
+                      customVideoName: sc.title,
+                      startTimeSeconds: sc.videoStartSeconds,
                     })
                   }
                   className={`shrink-0 w-20 rounded-xl overflow-hidden border transition ${
-                    editorState.sceneId === sc.id && !editorState.customVideoUrl
+                    editorState.sceneId === sc.id
                       ? "border-pink-500 ring-1 ring-pink-500/60"
                       : "border-white/10 opacity-75 hover:opacity-100"
                   }`}
@@ -730,16 +775,16 @@ export function VideoEditorTool() {
               id="start-time-range"
               type="range"
               min={0}
-              max={TOTAL_TRAILER_DURATION_SECONDS - 15}
-              value={editorState.startTimeSeconds}
+              max={Math.max(5, maxVideoTime - 3)}
+              value={Math.min(editorState.startTimeSeconds, Math.max(5, maxVideoTime - 3))}
               onChange={(e) =>
                 updateEditorState({ startTimeSeconds: Number(e.target.value) })
               }
               className="w-full vice-range"
             />
             <div className="flex items-center justify-between text-[11px] text-white/40">
-              <span>0:00</span>
-              <span>26:48</span>
+              <span>00:00</span>
+              <span>{formatSecondsToTimestamp(maxVideoTime)}</span>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
               {[-5, -1, 1, 5].map((delta) => (

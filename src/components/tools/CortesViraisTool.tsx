@@ -36,6 +36,49 @@ export function CortesViraisTool() {
     if (renderingSceneId) return;
     setRenderingSceneId(scene.id);
     try {
+      // 1. Try real FFmpeg server-side clean MP4 cut with full audio
+      try {
+        const res = await fetch("/api/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceVideoUrl: scene.videoUrl,
+            startTimeSeconds: scene.videoStartSeconds,
+            durationSeconds,
+            aspect,
+            framing: "centro",
+            zoom: 1.05,
+            clean: true,
+          }),
+        });
+        const data = await res.json();
+        if (data?.success && data?.downloadUrl) {
+          const a = document.createElement("a");
+          a.href = data.downloadUrl;
+          a.download = `corte-limpo-${scene.id}-${aspect.replace(":", "x")}-${durationSeconds}s.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+
+          addCreation({
+            id: `cut-${Date.now()}`,
+            type: "video",
+            title: `${scene.title} (Corte Limpo)`,
+            format: aspect,
+            durationSeconds,
+            modelName: "Vídeo Limpo MP4 · FFmpeg",
+            createdAt: "Agora mesmo",
+            downloadUrl: data.downloadUrl,
+            extension: "mp4",
+            thumbnailUrl: scene.imageUrl,
+          });
+          showToast(`Corte limpo MP4 ${aspect} (${durationSeconds}s) com áudio real baixado!`);
+          return;
+        }
+      } catch {
+        // Fallback smoothly to browser Canvas recorder
+      }
+
       const dims = getCanvasDimensionsForAspect(aspect);
       const scaleW = Math.round(dims.width / 2);
       const scaleH = Math.round(dims.height / 2);

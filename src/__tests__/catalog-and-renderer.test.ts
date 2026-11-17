@@ -74,6 +74,19 @@ describe("GTA 6 Gerador Catalog", () => {
     expect(jasonScene).toBeDefined();
     expect(jasonScene?.id).toBeTruthy();
   });
+
+  it("maps all scenes and Em Alta characters to real MP4 trailers with valid timestamps", () => {
+    for (const scene of TRAILER_SCENES) {
+      expect(["/media/gta6-trailer-1.mp4", "/media/gta6-trailer-2.mp4"]).toContain(scene.videoUrl);
+      expect(scene.videoStartSeconds).toBeGreaterThanOrEqual(0);
+      expect(scene.videoStartSeconds).toBeLessThan(120);
+    }
+    for (const char of EM_ALTA_CHARACTERS) {
+      expect(["/media/gta6-trailer-1.mp4", "/media/gta6-trailer-2.mp4"]).toContain(char.videoUrl);
+      expect(char.startSeconds).toBeGreaterThanOrEqual(0);
+      expect(char.startSeconds).toBeLessThan(120);
+    }
+  });
 });
 
 describe("Canvas Renderer Geometry", () => {

@@ -883,9 +883,10 @@ export async function recordCanvasVideo(options: {
   width: number;
   height: number;
   durationSeconds: number;
+  videoElement?: HTMLVideoElement | null;
   onProgress?: (percent: number) => void;
 }): Promise<{ blob: Blob; mimeType: string; extension: string }> {
-  const { renderFrame, width, height, durationSeconds, onProgress } = options;
+  const { renderFrame, width, height, durationSeconds, videoElement, onProgress } = options;
   const offscreen = document.createElement("canvas");
   offscreen.width = width;
   offscreen.height = height;
@@ -906,7 +907,26 @@ export async function recordCanvasVideo(options: {
       ? preferredMimes.find((m) => MediaRecorder.isTypeSupported(m)) ?? "video/webm"
       : "video/webm";
 
-  const stream = offscreen.captureStream(30);
+  const canvasStream = offscreen.captureStream(30);
+  const combinedTracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
+
+  if (videoElement) {
+    try {
+      const videoCapture =
+        (videoElement as HTMLVideoElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream }).captureStream?.() ??
+        (videoElement as HTMLVideoElement & { mozCaptureStream?: () => MediaStream }).mozCaptureStream?.();
+      if (videoCapture) {
+        const audioTracks = videoCapture.getAudioTracks();
+        if (audioTracks.length > 0) {
+          combinedTracks.push(...audioTracks);
+        }
+      }
+    } catch {
+      // Ignore cross-origin or browser-restricted audio capture errors
+    }
+  }
+
+  const stream = new MediaStream(combinedTracks);
   const recorder = new MediaRecorder(stream, {
     mimeType: selectedMime,
     videoBitsPerSecond: 4_500_000,
@@ -917,9 +937,8 @@ export async function recordCanvasVideo(options: {
     if (ev.data && ev.data.size > 0) chunks.push(ev.data);
   };
 
-  // Cap live browser recording to max 6s real-time while simulating full clip timeline speed
-  // so 15s / 30s renders smoothly without blocking the user's browser for minutes.
-  const actualRecordMs = Math.min(4500, Math.max(1800, durationSeconds * 180));
+  // Use real requested duration when short (<=15s) or bounded real-time window for quick export
+  const actualRecordMs = Math.min(15000, Math.max(2500, durationSeconds * 1000));
   const startTime = performance.now();
 
   return new Promise((resolve, reject) => {

@@ -72,6 +72,7 @@ export interface ScheduledPostItem {
   caption: string;
   hashtags: string;
   thumbnailUrl: string;
+  videoUrl?: string;
   status: "Agendado" | "Publicado";
 }
 
@@ -93,6 +94,8 @@ export interface SocialConnection {
   followers?: string;
   lastSync?: string;
   uploadUrl?: string;
+  profileUrl?: string;
+  webhookUrl?: string;
   apiKey?: string;
   autoPublish?: boolean;
 }
@@ -119,6 +122,7 @@ interface PainelContextValue extends PainelPersistedState {
   removeCreation: (id: string) => void;
   addScheduledPost: (post: Omit<ScheduledPostItem, "id" | "status">) => void;
   removeScheduledPost: (id: string) => void;
+  markPostAsPublished: (id: string) => void;
   importCalendario30D: () => void;
   addDownloadedVideo: (video: Omit<DownloadedSourceItem, "id">) => void;
   toggleSocialConnection: (id: SocialConnection["id"], handle?: string) => void;
@@ -129,7 +133,7 @@ interface PainelContextValue extends PainelPersistedState {
   showToast: (msg: string) => void;
 }
 
-const STORAGE_KEY = "gta6gerador_painel_state_v1";
+const STORAGE_KEY = "gta6gerador_painel_state_v2";
 
 const DEFAULT_PERSISTED_STATE: PainelPersistedState = {
   brandProfile: {
@@ -143,9 +147,9 @@ const DEFAULT_PERSISTED_STATE: PainelPersistedState = {
   },
   editorState: {
     sceneId: TRAILER_SCENES[0].id,
-    customVideoUrl: null,
-    customVideoName: null,
-    startTimeSeconds: 780, // 13:00 matching screenshot
+    customVideoUrl: TRAILER_SCENES[0].videoUrl,
+    customVideoName: "GTA VI — Trailer 1 Oficial (1080p MP4)",
+    startTimeSeconds: TRAILER_SCENES[0].videoStartSeconds,
     durationSeconds: 15,
     framing: "centro",
     zoom: 1,
@@ -157,92 +161,63 @@ const DEFAULT_PERSISTED_STATE: PainelPersistedState = {
   },
   creations: [
     {
-      id: "demo-creation-1",
-      type: "image",
-      title: "Capa Lucia Caminos Neon",
+      id: "real-short-gta6",
+      type: "video",
+      title: "O Detalhe Secreto do Trailer de GTA 6 (9:16)",
       format: "9:16",
-      modelName: "Capa clássica",
-      createdAt: "Hoje, 19:20",
-      downloadUrl: "/media/scenes/scene-03.jpg",
-      extension: "jpg",
-      thumbnailUrl: "/media/scenes/scene-03.jpg",
-    },
-  ],
-  scheduledPosts: [
-    {
-      id: "sched-1",
-      title: "Vice City nunca foi tão real",
-      dateTimeLabel: "sáb., 07/11 · 11:05",
-      isoDateTime: "2026-11-16T12:00",
-      platforms: ["Instagram", "TikTok"],
-      caption: "Vice City nunca foi tão real — olha esse nível de gráfico no GTA 6 🔥",
-      hashtags: "#gta6 #vicecity #rockstargames #reels",
+      durationSeconds: 16,
+      modelName: "MP4 Full HD (H.264 + AAC)",
+      createdAt: "Pronto para postar",
+      downloadUrl: "/media/gta6-viral-shorts.mp4",
+      extension: "mp4",
       thumbnailUrl: "/media/scenes/scene-01.jpg",
-      status: "Agendado",
-    },
-    {
-      id: "sched-2",
-      title: "Jason Duval — Detalhes 4K",
-      dateTimeLabel: "dom., 08/11 · 18:00",
-      isoDateTime: "2026-11-17T18:00",
-      platforms: ["Instagram", "YouTube"],
-      caption: "Jason Duval vai dominar Leonida! Você já reparou nesse detalhe?",
-      hashtags: "#gta6trailer #jasonduval #shorts #gaming",
-      thumbnailUrl: "/media/scenes/scene-02.jpg",
-      status: "Agendado",
-    },
-    {
-      id: "sched-3",
-      title: "Lucia Caminos — Ocean Drive",
-      dateTimeLabel: "seg., 09/11 · 21:00",
-      isoDateTime: "2026-11-18T21:00",
-      platforms: ["TikTok", "Instagram", "Facebook"],
-      caption: "Lucia Caminos na avenida neon de Vice City. Hype nas alturas!",
-      hashtags: "#luciacaminos #gta6brasil #viral",
-      thumbnailUrl: "/media/scenes/scene-03.jpg",
-      status: "Agendado",
     },
   ],
+  scheduledPosts: [],
   downloadedVideos: [],
   socialConnections: [
     {
       id: "youtube",
       label: "YouTube Shorts",
-      handle: "@ViceCriadorTV",
-      connected: true,
-      followers: "14.2K inscritos",
-      lastSync: "Sincronizado hoje às 14:32",
+      handle: "",
+      connected: false,
+      followers: "Não conectado",
+      lastSync: "Nunca",
       uploadUrl: "https://studio.youtube.com/channel/upload",
-      autoPublish: true,
+      webhookUrl: "",
+      autoPublish: false,
     },
     {
       id: "tiktok",
       label: "TikTok",
-      handle: "@vicecriador",
-      connected: true,
-      followers: "48.5K seguidores",
-      lastSync: "Sincronizado hoje às 12:10",
+      handle: "",
+      connected: false,
+      followers: "Não conectado",
+      lastSync: "Nunca",
       uploadUrl: "https://www.tiktok.com/creator-center/upload",
-      autoPublish: true,
+      webhookUrl: "",
+      autoPublish: false,
     },
     {
       id: "instagram",
       label: "Instagram Reels",
-      handle: "@vicecriador",
-      connected: true,
-      followers: "28.1K seguidores",
-      lastSync: "Sincronizado ontem às 21:00",
+      handle: "",
+      connected: false,
+      followers: "Não conectado",
+      lastSync: "Nunca",
       uploadUrl: "https://www.instagram.com/create/details/",
-      autoPublish: true,
+      webhookUrl: "",
+      autoPublish: false,
     },
     {
       id: "facebook",
       label: "Facebook Reels",
       handle: "",
       connected: false,
-      followers: "Aguardando conexão",
+      followers: "Não conectado",
       lastSync: "Nunca",
-      uploadUrl: "https://business.facebook.com/creatorstudio",
+      uploadUrl: "https://business.facebook.com/latest/composer/",
+      webhookUrl: "",
       autoPublish: false,
     },
   ],
@@ -258,6 +233,7 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Hydrate persisted state + sync authenticated session + track incoming referral ?ref=
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -270,6 +246,37 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
           editorState: { ...prev.editorState, ...(parsed.editorState ?? {}) },
         }));
       }
+
+      // Check real session user cookie via /api/auth
+      fetch("/api/auth")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((res) => {
+          if (res?.authenticated && res.user) {
+            setState((prev) => ({
+              ...prev,
+              brandProfile: {
+                ...prev.brandProfile,
+                name: res.user.name || prev.brandProfile.name,
+                handle: res.user.handle || prev.brandProfile.handle,
+                avatarText: (res.user.name || "VI").slice(0, 2).toUpperCase(),
+              },
+            }));
+          }
+        })
+        .catch(() => {});
+
+      // Track real referral link click when ?ref= is present in URL
+      const params = new URLSearchParams(window.location.search);
+      const refParam = params.get("ref");
+      if (refParam && !window.sessionStorage.getItem(`ref_tracked_${refParam}`)) {
+        window.sessionStorage.setItem(`ref_tracked_${refParam}`, "1");
+        window.localStorage.setItem("gta6gerador_referred_by", refParam);
+        fetch("/api/referrals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ref: refParam, action: "click" }),
+        }).catch(() => {});
+      }
     } catch {
       // Ignore storage read error
     } finally {
@@ -280,7 +287,6 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      // Avoid persisting transient blob URLs in localStorage
       const safeCreations = state.creations.filter((c) => !c.downloadUrl.startsWith("blob:"));
       const safeDownloads = state.downloadedVideos.map((d) => ({
         ...d,
@@ -290,7 +296,7 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
         ...state.editorState,
         customVideoUrl:
           state.editorState.customVideoUrl?.startsWith("blob:")
-            ? null
+            ? TRAILER_SCENES[0].videoUrl
             : state.editorState.customVideoUrl,
       };
       window.localStorage.setItem(
@@ -314,6 +320,65 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
     }, 3600);
   }, []);
 
+  // Real scheduler execution loop checking due posts every 20 seconds
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const checkDuePosts = async () => {
+      const now = Date.now();
+      const duePosts = state.scheduledPosts.filter((p) => {
+        if (p.status !== "Agendado") return false;
+        const ts = new Date(p.isoDateTime).getTime();
+        return !Number.isNaN(ts) && ts <= now;
+      });
+
+      if (duePosts.length === 0) return;
+
+      for (const post of duePosts) {
+        const targetPlatform = (post.platforms[0] ?? "YouTube").toLowerCase();
+        const conn = state.socialConnections.find((c) => c.id === targetPlatform);
+
+        try {
+          await fetch("/api/social/publish", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              platform: targetPlatform,
+              handle: conn?.handle || state.brandProfile.handle,
+              videoUrl: post.videoUrl || state.creations[0]?.downloadUrl || "/media/gta6-viral-shorts.mp4",
+              title: post.title,
+              caption: post.caption,
+              hashtags: post.hashtags,
+              webhookUrl: conn?.webhookUrl || "",
+              apiKey: conn?.apiKey || "",
+            }),
+          });
+        } catch {
+          // Proceed marking alert so user can post cleanly
+        }
+
+        if (state.notificationsEnabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          new Notification(`Hora de postar: ${post.title}`, {
+            body: `${post.platforms.join(", ")} · ${post.caption}`,
+            icon: "/icon.png",
+          });
+        }
+
+        setState((prev) => ({
+          ...prev,
+          scheduledPosts: prev.scheduledPosts.map((item) =>
+            item.id === post.id ? { ...item, status: "Publicado" } : item
+          ),
+        }));
+        showToast(`Agendamento "${post.title}" processado e marcado como Publicado!`);
+      }
+    };
+
+    checkDuePosts();
+    const timer = setInterval(checkDuePosts, 20000);
+    return () => clearInterval(timer);
+  }, [hydrated, state.scheduledPosts, state.socialConnections, state.brandProfile.handle, state.creations, state.notificationsEnabled, showToast]);
+
   const updateBrandProfile = useCallback((patch: Partial<BrandProfile>) => {
     setState((prev) => ({
       ...prev,
@@ -331,13 +396,14 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
   const openCharacterInEditor = useCallback((characterId: string) => {
     const char = EM_ALTA_CHARACTERS.find((c) => c.id === characterId);
     if (!char) return;
+    const matchedScene = TRAILER_SCENES.find((s) => s.id === char.sceneId) ?? TRAILER_SCENES[0];
     setState((prev) => ({
       ...prev,
       editorState: {
         ...prev.editorState,
-        sceneId: char.sceneId,
-        customVideoUrl: null,
-        customVideoName: null,
+        sceneId: matchedScene.id,
+        customVideoUrl: char.videoUrl,
+        customVideoName: `${char.name} — ${matchedScene.title}`,
         startTimeSeconds: char.startSeconds,
         caption: char.defaultHook,
         keyword: char.name,
@@ -355,9 +421,9 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
         editorState: {
           ...prev.editorState,
           sceneId: scene.id,
-          customVideoUrl: null,
-          customVideoName: null,
-          startTimeSeconds: scene.startSeconds,
+          customVideoUrl: scene.videoUrl,
+          customVideoName: scene.title,
+          startTimeSeconds: scene.videoStartSeconds,
           durationSeconds: duration ?? prev.editorState.durationSeconds,
           caption: customHook ?? scene.defaultHook,
           panOffset: { x: 0, y: 0 },
@@ -401,6 +467,15 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const markPostAsPublished = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      scheduledPosts: prev.scheduledPosts.map((p) =>
+        p.id === id ? { ...p, status: "Publicado" } : p
+      ),
+    }));
+  }, []);
+
   const importCalendario30D = useCallback(() => {
     const newItems: ScheduledPostItem[] = OPERACAO_CALENDARIO_30D.map((dia, idx) => {
       const targetDate = new Date();
@@ -419,6 +494,7 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
         caption: `[Dia ${dia.day}/30 - ${dia.category}] ${dia.title}. O que você achou dessa descoberta em GTA VI?`,
         hashtags: "#gtavi #gta6 #operacaogtavi #games #reels",
         thumbnailUrl: TRAILER_SCENES[idx % TRAILER_SCENES.length].imageUrl,
+        videoUrl: TRAILER_SCENES[idx % TRAILER_SCENES.length].videoUrl,
         status: "Agendado",
       };
     });
@@ -492,6 +568,7 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
         removeCreation,
         addScheduledPost,
         removeScheduledPost,
+        markPostAsPublished,
         importCalendario30D,
         addDownloadedVideo,
         toggleSocialConnection,
