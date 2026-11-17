@@ -84,6 +84,10 @@ export interface DownloadedSourceItem {
   thumbnailUrl: string;
   videoUrl: string | null;
   cleanCaption: string;
+  platform?: "youtube" | "tiktok" | "instagram" | "gdrive" | "direct" | "local";
+  uploader?: string;
+  embedUrl?: string;
+  downloadMirrors?: { label: string; url: string }[];
 }
 
 export interface SocialConnection {
@@ -125,6 +129,8 @@ interface PainelContextValue extends PainelPersistedState {
   markPostAsPublished: (id: string) => void;
   importCalendario30D: () => void;
   addDownloadedVideo: (video: Omit<DownloadedSourceItem, "id">) => void;
+  updateDownloadedVideo: (id: string, patch: Partial<DownloadedSourceItem>) => void;
+  removeDownloadedVideo: (id: string) => void;
   toggleSocialConnection: (id: SocialConnection["id"], handle?: string) => void;
   updateSocialConnection: (id: SocialConnection["id"], patch: Partial<SocialConnection>) => void;
   setPixKey: (key: string) => void;
@@ -516,6 +522,22 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const updateDownloadedVideo = useCallback((id: string, patch: Partial<DownloadedSourceItem>) => {
+    setState((prev) => ({
+      ...prev,
+      downloadedVideos: prev.downloadedVideos.map((vid) =>
+        vid.id === id ? { ...vid, ...patch } : vid
+      ),
+    }));
+  }, []);
+
+  const removeDownloadedVideo = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      downloadedVideos: prev.downloadedVideos.filter((vid) => vid.id !== id),
+    }));
+  }, []);
+
   const toggleSocialConnection = useCallback(
     (id: SocialConnection["id"], handle?: string) => {
       setState((prev) => ({
@@ -571,6 +593,8 @@ export function PainelProvider({ children }: { children: React.ReactNode }) {
         markPostAsPublished,
         importCalendario30D,
         addDownloadedVideo,
+        updateDownloadedVideo,
+        removeDownloadedVideo,
         toggleSocialConnection,
         updateSocialConnection,
         setPixKey,

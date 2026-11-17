@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import fs from "node:fs";
+import { resolveCloudMedia } from "@/lib/media-extractor";
 
 const execFileAsync = promisify(execFile);
 
@@ -25,56 +26,6 @@ function resolveDownloadsDir(): string {
     }
     return tmpDir;
   }
-}
-
-async function tryCloudFallback(
-  parsedUrl: URL,
-  customTitle: string,
-  customCaption: string
-) {
-  const host = parsedUrl.hostname.toLowerCase();
-
-  // Direct MP4 / WebM URL support
-  if (/\.(mp4|webm|mov)(\?.*)?$/i.test(parsedUrl.pathname)) {
-    return {
-      success: true,
-      id: `direct-${Date.now()}`,
-      title: customTitle || "Vídeo MP4 Externo",
-      sourceUrl: parsedUrl.toString(),
-      durationSeconds: 15,
-      videoUrl: parsedUrl.toString(),
-      thumbnailUrl: "/media/scenes/scene-01.jpg",
-      cleanCaption: customCaption || "Corte GTA 6 pronto para edição",
-      uploader: parsedUrl.hostname,
-      format: "MP4 Direto",
-    };
-  }
-
-  // TikTok serverless HTTP extractor fallback via tikwm
-  if (host.includes("tiktok.com")) {
-    const res = await fetch("https://www.tikwm.com/api/", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ url: parsedUrl.toString(), hd: "1" }),
-    });
-    const json = await res.json();
-    if (json?.code === 0 && json?.data?.play) {
-      return {
-        success: true,
-        id: json.data.id || `tiktok-${Date.now()}`,
-        title: customTitle || json.data.title || "Vídeo TikTok Sem Marca",
-        sourceUrl: parsedUrl.toString(),
-        durationSeconds: Number(json.data.duration) || 15,
-        videoUrl: json.data.hdplay || json.data.play,
-        thumbnailUrl: json.data.cover || "/media/scenes/scene-01.jpg",
-        cleanCaption: customCaption || json.data.title || "Corte sem marca d'água pronto",
-        uploader: json.data.author?.unique_id || "TikTok",
-        format: "MP4 HD (Sem Marca d'Água)",
-      };
-    }
-  }
-
-  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -172,8 +123,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Cloud serverless HTTP extractor fallback (works on Vercel & edge/serverless without Python)
-    const cloudResult = await tryCloudFallback(parsedUrl, customTitle, customCaption);
+    // 2. Cloud serverless multi-platform extractor (works on Vercel & edge/serverless without Python)
+    const cloudResult = await resolveCloudMedia(parsedUrl, customTitle, customCaption);
     if (cloudResult) {
       return NextResponse.json(cloudResult);
     }
@@ -181,7 +132,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Não foi possível extrair o vídeo automaticamente dessa URL no servidor serverless. Tente um link público do TikTok, um link direto .mp4 ou suba o arquivo MP4 do seu computador.",
+          "Plataforma não reconhecida ou link inválido. Use URLs do YouTube, YouTube Shorts, TikTok, Instagram Reels, Google Drive ou link direto .mp4.",
       },
       { status: 422 }
     );

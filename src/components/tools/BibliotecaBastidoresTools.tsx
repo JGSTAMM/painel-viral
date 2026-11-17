@@ -12,6 +12,7 @@ import {
   Scissors,
   Search,
   Sparkles,
+  Trash2,
   Upload,
   Video,
 } from "lucide-react";
@@ -410,25 +411,35 @@ export function BibliotecaHdTool() {
 }
 
 export function BaixadorRepostTool() {
-  const { downloadedVideos, addDownloadedVideo, updateEditorState, setActiveTab, showToast } =
-    usePainel();
+  const {
+    downloadedVideos,
+    addDownloadedVideo,
+    updateDownloadedVideo,
+    removeDownloadedVideo,
+    updateEditorState,
+    setActiveTab,
+    showToast,
+  } = usePainel();
   const [urlInput, setUrlInput] = useState("");
   const [titleInput, setTitleInput] = useState("");
   const [captionInput, setCaptionInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const attachFileRef = useRef<HTMLInputElement | null>(null);
+  const [attachingVideoId, setAttachingVideoId] = useState<string | null>(null);
 
   const handleImportRealVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUrl = urlInput.trim();
     if (!cleanUrl) {
-      showToast("Insira um link válido do TikTok, Reels, Shorts ou Drive.");
+      showToast("Insira um link válido do TikTok, Reels, Shorts, YouTube ou Drive.");
       return;
     }
 
     setIsLoading(true);
-    setLoadingMessage("Conectando ao servidor e extraindo vídeo sem marca d'água...");
+    setLoadingMessage("Conectando ao motor multi-plataforma e extraindo metadados...");
 
     try {
       const response = await fetch("/api/download", {
@@ -444,26 +455,30 @@ export function BaixadorRepostTool() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Falha ao baixar o vídeo");
+        throw new Error(data.error || "Falha ao processar o vídeo");
       }
 
-      // Add to persistent downloadedVideos context
       addDownloadedVideo({
         title: data.title,
         sourceUrl: data.sourceUrl,
         durationSeconds: data.durationSeconds || 15,
         thumbnailUrl: data.thumbnailUrl,
-        videoUrl: data.videoUrl,
+        videoUrl: data.videoUrl || null,
         cleanCaption: data.cleanCaption,
+        platform: data.platform,
+        uploader: data.uploader,
+        embedUrl: data.embedUrl,
+        downloadMirrors: data.downloadMirrors,
       });
 
       setUrlInput("");
       setTitleInput("");
       setCaptionInput("");
-      showToast(`Vídeo "${data.title}" baixado com sucesso pelo servidor!`);
-    } catch (err: any) {
+      showToast(`Vídeo "${data.title}" importado com sucesso!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao processar o link. Tente outro link.";
       console.error("Erro no download real:", err);
-      showToast(err.message || "Erro ao processar o link. Tente outro link.");
+      showToast(msg);
     } finally {
       setIsLoading(false);
       setLoadingMessage("");
@@ -481,18 +496,54 @@ export function BaixadorRepostTool() {
       thumbnailUrl: TRAILER_SCENES[0].imageUrl,
       videoUrl: blobUrl,
       cleanCaption: captionInput.trim() || "Novo corte importado para repost com sua marca",
+      platform: "local",
     });
     showToast(`Arquivo "${file.name}" importado com sucesso!`);
+    e.target.value = "";
+  };
+
+  const handleAttachFileToCard = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !attachingVideoId) return;
+    const blobUrl = URL.createObjectURL(file);
+    updateDownloadedVideo(attachingVideoId, {
+      videoUrl: blobUrl,
+      platform: "local",
+    });
+    showToast(`MP4 "${file.name}" vinculado ao vídeo com sucesso!`);
+    setAttachingVideoId(null);
+    e.target.value = "";
+  };
+
+  const handleQuickImportGta = (trailerNumber: 1 | 2) => {
+    addDownloadedVideo({
+      title: `GTA VI — Trailer ${trailerNumber} Oficial (Full HD)`,
+      sourceUrl: `/media/gta6-trailer-${trailerNumber}.mp4`,
+      durationSeconds: trailerNumber === 1 ? 91 : 125,
+      thumbnailUrl: TRAILER_SCENES[trailerNumber === 1 ? 0 : 10].imageUrl,
+      videoUrl: `/media/gta6-trailer-${trailerNumber}.mp4`,
+      cleanCaption:
+        trailerNumber === 1
+          ? "O trailer que parou a internet: Lucia e Vice City em 4K!"
+          : "Trailer 2 Oficial GTA VI: Jason, ação e detalhes ocultos em Leonida!",
+      platform: "direct",
+      uploader: "Rockstar Games",
+    });
+    showToast(`Trailer ${trailerNumber} adicionado à fila de repost!`);
   };
 
   const handleSendToEditor = (video: (typeof downloadedVideos)[0]) => {
     updateEditorState({
-      customVideoUrl: video.videoUrl,
+      customVideoUrl: video.videoUrl || "/media/gta6-trailer-1.mp4",
       customVideoName: video.title,
       caption: video.cleanCaption,
     });
     setActiveTab("editar-video");
-    showToast(`"${video.title}" aberto no Editor de Vídeo!`);
+    showToast(
+      video.videoUrl
+        ? `"${video.title}" aberto no Editor de Vídeo!`
+        : `"${video.title}" carregado no Editor com base GTA 6! (Use "Subir MP4" caso queira trocar o vídeo de fundo)`
+    );
   };
 
   return (
@@ -583,6 +634,13 @@ export function BaixadorRepostTool() {
               onChange={handleImportFile}
               className="hidden"
             />
+            <input
+              ref={attachFileRef}
+              type="file"
+              accept="video/*"
+              onChange={handleAttachFileToCard}
+              className="hidden"
+            />
             <button
               type="button"
               disabled={isLoading}
@@ -591,6 +649,28 @@ export function BaixadorRepostTool() {
             >
               <Upload className="w-4 h-4 text-cyan-400" />
               Subir arquivo MP4 do PC
+            </button>
+          </div>
+
+          <div className="md:col-span-2 pt-2 border-t border-white/[0.06] flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-white/50 mr-1">
+              Atalhos Rápidos GTA VI:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleQuickImportGta(1)}
+              className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-pink-500/20 border border-white/10 text-[11px] font-bold text-white/80 hover:text-white flex items-center gap-1.5 transition"
+            >
+              <Video className="w-3.5 h-3.5 text-pink-400" />
+              Importar Trailer 1 Oficial
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickImportGta(2)}
+              className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-cyan-500/20 border border-white/10 text-[11px] font-bold text-white/80 hover:text-white flex items-center gap-1.5 transition"
+            >
+              <Video className="w-3.5 h-3.5 text-cyan-400" />
+              Importar Trailer 2 Oficial
             </button>
           </div>
 
@@ -617,8 +697,8 @@ export function BaixadorRepostTool() {
             <Sparkles className="w-6 h-6 text-pink-400 mx-auto" />
             <p className="text-sm font-bold text-white">Nenhum vídeo importado ainda</p>
             <p className="text-xs text-white/50 max-w-md mx-auto">
-              Cole o link de um Reels, TikTok ou Shorts acima para que o servidor processe e baixe
-              o clipe em MP4 sem marca d&apos;água.
+              Cole o link de um YouTube, Shorts, Reels, TikTok ou Google Drive acima, ou use os
+              atalhos rápidos para adicionar clipes instantaneamente.
             </p>
           </div>
         ) : (
@@ -628,7 +708,7 @@ export function BaixadorRepostTool() {
                 key={vid.id}
                 className="rounded-2xl overflow-hidden bg-[#130b1f] border border-white/[0.08] hover:border-pink-500/40 transition flex flex-col"
               >
-                <div className="relative aspect-video bg-black/60">
+                <div className="relative aspect-video bg-black/60 group">
                   {vid.videoUrl ? (
                     <video
                       src={vid.videoUrl}
@@ -636,25 +716,92 @@ export function BaixadorRepostTool() {
                       preload="metadata"
                       className="w-full h-full object-cover"
                     />
-                  ) : (
-                    <img
-                      src={vid.thumbnailUrl}
-                      alt={vid.title}
-                      className="w-full h-full object-cover"
+                  ) : activeEmbedId === vid.id && vid.embedUrl ? (
+                    <iframe
+                      src={vid.embedUrl}
+                      title={vid.title}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
                     />
+                  ) : (
+                    <>
+                      <img
+                        src={vid.thumbnailUrl}
+                        alt={vid.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {vid.embedUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveEmbedId(vid.id)}
+                          className="absolute inset-0 bg-black/35 group-hover:bg-black/50 flex items-center justify-center transition"
+                          title="Assistir prévia do vídeo"
+                        >
+                          <span className="w-12 h-12 rounded-full bg-pink-600/90 hover:bg-pink-500 text-white flex items-center justify-center shadow-lg">
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                          </span>
+                        </button>
+                      )}
+                    </>
                   )}
-                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-bold text-white">
-                    {vid.durationSeconds}s
-                  </span>
+                  <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded bg-black/80 text-[10px] font-bold text-white">
+                      {vid.durationSeconds}s
+                    </span>
+                    {vid.platform && (
+                      <span className="px-2 py-0.5 rounded bg-pink-600/90 text-[10px] font-extrabold uppercase text-white">
+                        {vid.platform}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeDownloadedVideo(vid.id)}
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-red-600 text-white/70 hover:text-white transition"
+                    title="Remover vídeo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
+
                 <div className="p-4 flex-1 flex flex-col justify-between gap-3">
                   <div>
                     <h4 className="text-xs font-bold text-white line-clamp-1">{vid.title}</h4>
+                    {vid.uploader && (
+                      <span className="text-[10px] text-cyan-400 font-semibold block mt-0.5">
+                        Canal: {vid.uploader}
+                      </span>
+                    )}
                     <p className="text-[11px] text-white/50 mt-1 line-clamp-2">
                       {vid.cleanCaption}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  {!vid.videoUrl && vid.downloadMirrors && vid.downloadMirrors.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/45 block">
+                        Baixar MP4 Limpo (1 Clique):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {vid.downloadMirrors.map((mirror) => (
+                          <a
+                            key={mirror.label}
+                            href={mirror.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-cyan-500/20 border border-white/10 text-[10px] font-bold text-cyan-300 flex items-center gap-1 transition"
+                          >
+                            <Download className="w-3 h-3" />
+                            {mirror.label.split(" (")[0]}
+                            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => handleSendToEditor(vid)}
@@ -663,6 +810,19 @@ export function BaixadorRepostTool() {
                       <Scissors className="w-3.5 h-3.5" />
                       Editar com Marca
                     </button>
+                    {!vid.videoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttachingVideoId(vid.id);
+                          attachFileRef.current?.click();
+                        }}
+                        className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-cyan-300 transition border border-white/10"
+                        title="Vincular arquivo MP4 baixado"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {vid.videoUrl && (
                       <a
                         href={vid.videoUrl}
